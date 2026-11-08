@@ -1,0 +1,13 @@
+# Kaggle training deps (GPU T4). Unsloth pins compatible trl/peft/transformers/bitsandbytes itself;
+# after a good run, freeze exact versions here with `pip freeze | grep -iE "unsloth|trl|peft|transformers|bitsandbytes|datasets|accelerate"`.
+unsloth
+unsloth_zoo
+trl
+peft
+transformers
+bitsandbytes
+accelerate
+datasets
+safetensors
+pandas
+huggingface_hub
