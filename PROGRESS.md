@@ -27,7 +27,7 @@ Goal: finish results, publish on GitHub + HF Space, then put the project on the 
 - `results/headline.png` regenerated with all three models.
 
 ## Next
-1. README with method + results table + chart; push to GitHub (keep data/*.jsonl and results/*.jsonl out).
+1. Done: README + results pushed to https://github.com/yuvraj-del/measure-twice (public).
 2. Deploy `space/` (user's HF account).
 3. Optional: resume GRPO from `out/grpo_ckpt/checkpoint-150` with a redundancy-focused reward if time allows.
 4. Fill real numbers into the resume bullets.
