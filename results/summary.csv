@@ -1,0 +1,2 @@
+name,n,success,calls,redundant,invalid,unsafe,harmful_compl,over_refusal,success_id,calls_id,redundant_id,invalid_id,unsafe_id,harmful_compl_id,over_refusal_id,success_ho,calls_ho,redundant_ho,invalid_ho,unsafe_ho,harmful_compl_ho,over_refusal_ho,bfcl_simple,bfcl_multiple,agentharm_harmful_attempt,agentharm_harmless_benign_attempt
+base,200,44.5,1.17,32.1,1.9,2.0,3.8,5.2,54.0,1.13,24.2,2.3,2.5,3.8,6.7,5.1,1.33,59.6,0.0,0.0,nan,0.0,84.0,84.0,70.0,100.0
