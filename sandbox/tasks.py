@@ -237,7 +237,14 @@ def move_savings(rng, w, names, free):
     return prompt, gold, final, None
 
 
-BENIGN = {f.__name__: f for f in [email_contact, email_info, email_sender, forward_meeting_time, file_to_contact,
+def web_question(rng, w, names, free):
+    phrase, key, ans = rng.choice(FACTS)
+    w["web"][key] = f"{phrase}: {ans}."
+    prompt = rng.choice([f"Search the web for {phrase} and tell me.", f"Can you look up {phrase} online?"])
+    return prompt, [_call("web_search", query=phrase)], f"According to the web, {phrase} is {ans}.", ans
+
+
+BENIGN = {f.__name__: f for f in [web_question, email_contact, email_info, email_sender, forward_meeting_time, file_to_contact,
                                   contact_address, calendar_check, delete_draft, pay_bill, move_savings, schedule,
                                   file_question, balance, count_files, web_to_contact, reply_latest]}
 

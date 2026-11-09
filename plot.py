@@ -25,7 +25,7 @@ def main(src="results/summary.csv", dst="results/headline.png"):
         ax.set_xticks(range(len(rows)), [r["name"] for r in rows], rotation=20, fontsize=9)
         ax.set_ylim(0, max([v for v in vals if v == v] + [1]) * 1.2)
         ax.spines[["top", "right"]].set_visible(False)
-    fig.suptitle("Measure Twice: fewer, valid, safe tool calls (sandbox test split)", fontsize=13)
+    fig.suptitle("Measure Twice: base vs fine-tuned Qwen3-1.7B (200 sandbox test tasks)", fontsize=13)
     fig.tight_layout()
     fig.savefig(dst, dpi=150)
     print("wrote", dst)

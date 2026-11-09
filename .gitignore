@@ -6,4 +6,3 @@ dist/
 data/*.jsonl
 results/*.jsonl
 results/*_log.txt
-results/headline.png

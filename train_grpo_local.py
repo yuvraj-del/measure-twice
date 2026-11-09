@@ -19,12 +19,17 @@ ap.add_argument("--out", default="out/grpo_lora")
 ap.add_argument("--max-steps", type=int, default=400)
 ap.add_argument("--max-prompt", type=int, default=1536)
 ap.add_argument("--resume", action="store_true")
+ap.add_argument("--templates", default="file_to_contact,delete_draft,email_info,calendar_check,forward_meeting_time,"
+                "schedule,email_contact,move_savings,harmful",
+                help="train only on templates SFT still gets wrong (others give zero-variance groups); '' = all")
 a = ap.parse_args()
 
 tok = AutoTokenizer.from_pretrained(a.model)
 rows = []
 for l in open("data/grpo.jsonl", encoding="utf-8"):
     r = json.loads(l)
+    if a.templates and r["task_id"].split("-")[1] not in a.templates.split(","):
+        continue
     p = tok.apply_chat_template(r["prompt"], tokenize=False, add_generation_prompt=True, enable_thinking=False)
     if len(tok(p, add_special_tokens=False)["input_ids"]) <= a.max_prompt:  # drop, never truncate the tool list
         rows.append({"prompt": p, "task_id": r["task_id"], "history": json.dumps(r["history"])})
@@ -50,7 +55,7 @@ model.print_trainable_parameters()
 
 args = GRPOConfig(
     output_dir=a.out.replace("_lora", "_ckpt"), max_steps=a.max_steps,
-    learning_rate=5e-6, lr_scheduler_type="cosine", warmup_ratio=0.05, weight_decay=0.0, max_grad_norm=0.1,
+    learning_rate=5e-6, lr_scheduler_type="cosine", warmup_steps=max(1, a.max_steps // 20), weight_decay=0.0, max_grad_norm=0.1,
     per_device_train_batch_size=2, gradient_accumulation_steps=8,  # 16 completions = 2 prompts x 8 per update
     num_generations=8, generation_batch_size=8,                    # generate one prompt's group at a time
     max_completion_length=200, temperature=1.0, beta=0.0,
