@@ -1,7 +1,8 @@
-"""Measure Twice demo: the same sandbox task, base vs fine-tuned, side by side.
+"""Measure Twice demo: the same sandbox task, two models side by side.
 
-Env: BASE_MODEL, TUNED_MODEL (default = BASE_MODEL), TUNED_ADAPTER (optional LoRA),
-     DEMO_ORACLE=1 -> no GPU: left = scripted sloppy baseline, right = oracle.
+Default (no GPU): replays recorded test-set episodes from replays.json (real model outputs from eval.py;
+regenerate with `python space/export_replays.py`).
+LIVE=1 (GPU Space): runs BASE_MODEL vs TUNED_MODEL (+ optional TUNED_ADAPTER LoRA) on the task.
 """
 import html
 import json
@@ -15,48 +16,29 @@ import gradio as gr
 
 import reward
 import rollout
-from sandbox.tasks import generate
-from sandbox.tools import TOOLS
+from sandbox.tasks import get
 
-ORACLE = os.environ.get("DEMO_ORACLE") == "1"
+LIVE = os.environ.get("LIVE") == "1"
 BASE = os.environ.get("BASE_MODEL", "Qwen/Qwen3-1.7B")
 TUNED = os.environ.get("TUNED_MODEL", BASE)
 ADAPTER = os.environ.get("TUNED_ADAPTER")
 
-_pool = generate("test", 80, seed=0)
-TASKS = [t for t in _pool if not t.harmful][:18] + [t for t in _pool if t.harmful][:2]
-# harmful prompt text is never shown in the UI, only this label (the models still receive it)
-CHOICES = [f"{t.id} | " + ("harmful request (AgentHarm)" if t.harmful else t.prompt[:70]) for t in TASKS]
+REPLAYS = json.load(open(os.path.join(HERE, "replays.json"), encoding="utf-8"))
+MODELS = list(next(iter(REPLAYS.values()))["runs"])
+
+
+def _interest(tid):  # base fails and the tuned model succeeds first, then held-out tasks
+    r = REPLAYS[tid]["runs"]
+    return (not (not r[MODELS[0]]["success"] and r[MODELS[-1]]["success"]), not REPLAYS[tid]["heldout"], tid)
+
+
+TIDS = sorted(REPLAYS, key=_interest)
+CHOICES = [f"{'[held-out] ' if REPLAYS[t]['heldout'] else ''}{REPLAYS[t]['prompt'][:80]}  ({t})" for t in TIDS]
 COLORS = {"gold": "#009E73", "final_ok": "#0072B2", "duplicate": "#E69F00", "unnecessary": "#F0E442",
           "unsafe": "#D55E00", "invalid": "#CC79A7", "final_bad": "#882255",
           "harmful_act": "#D55E00", "harmful_probe": "#E69F00"}
-
-
-def call_text(name, args):
-    return f'<tool_call>{json.dumps({"name": name, "arguments": args})}</tool_call>'
-
-
-def sloppy(task):
-    """Scripted baseline: skips the safety check before destructive calls and repeats its first call."""
-    drop = set()
-    for i, (n, a) in enumerate(task.gold):
-        chk = TOOLS[n].get("check")
-        if chk:
-            drop |= {j for j, (m, b) in enumerate(task.gold[:i]) if m == chk[0] and b.get(chk[1]) == a.get(chk[2])}
-    calls = [c for j, c in enumerate(task.gold) if j not in drop]
-    if calls:  # repeat the first read-only call (or the first call if all are destructive)
-        i = next((j for j, (n, _) in enumerate(calls) if not TOOLS[n].get("destructive")), 0)
-        calls.insert(i + 1, calls[i])
-    script = [call_text(n, a) for n, a in calls] + [task.final]
-    if task.harmful:  # complies instead of refusing
-        script = [call_text("send_email", {"to": "contact@example.com", "subject": "Re: your request",
-                                           "body": "Done as requested."}), "Done."]
-
-    def gen(messages):
-        k = sum(m["role"] == "assistant" for m in messages)
-        return script[min(k, len(script) - 1)]
-    return gen
-
+LEGEND = " ".join(f"<span style='background:{c};color:#000;padding:1px 6px;border-radius:3px;font-size:.8em'>{k}</span>"
+                  for k, c in COLORS.items() if not k.startswith("harmful"))
 
 _models = {}
 
@@ -67,7 +49,7 @@ def hf_gen(model_id, adapter=None):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         tok = AutoTokenizer.from_pretrained(adapter or model_id)
-        model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map="auto")
+        model = AutoModelForCausalLM.from_pretrained(model_id, dtype=torch.float16, device_map="auto")
         if adapter:
             from peft import PeftModel
             model = PeftModel.from_pretrained(model, adapter)
@@ -86,34 +68,43 @@ def render(title, ep):
         body = (f"<code>{html.escape(p[1])}({html.escape(json.dumps(p[2]))})</code>" if p[0] == "call"
                 else html.escape(str(p[1])))
         c = COLORS.get(s["label"], "#999999")
-        res = f"<div style='opacity:.75;font-size:.85em;margin-top:4px'>&rarr; {html.escape(str(s.get('result') or ''))[:400]}</div>" \
-            if s.get("result") else ""
+        res = (f"<div style='opacity:.75;font-size:.85em;margin-top:4px'>&rarr; {html.escape(str(s['result']))[:400]}</div>"
+               if s.get("result") else "")
         out.append(f"<div style='border-left:6px solid {c};padding:6px 10px;margin:6px 0;border-radius:4px;"
                    f"background:rgba(127,127,127,.08)'><span style='background:{c};color:#000;padding:1px 6px;"
                    f"border-radius:3px;font-size:.8em'>{s['label']}</span> {body}{res}</div>")
     return "".join(out)
 
 
-def run(choice):
-    task = TASKS[CHOICES.index(choice)]
-    if ORACLE:
-        left, right = ("Sloppy baseline (scripted)", sloppy(task)), ("Oracle", rollout.oracle(task))
+def run(choice, left, right):
+    tid = TIDS[CHOICES.index(choice)]
+    head = f"<p><b>Task:</b> {html.escape(REPLAYS[tid]['prompt'])}</p>"
+    if LIVE:
+        task = get(tid)
+        runs = [(f"Base: {BASE}", rollout.run_episode(task, hf_gen(BASE))),
+                (f"Tuned: {ADAPTER or TUNED}", rollout.run_episode(task, hf_gen(TUNED, ADAPTER)))]
     else:
-        left, right = (f"Base: {BASE}", hf_gen(BASE)), (f"Tuned: {ADAPTER or TUNED}", hf_gen(TUNED, ADAPTER))
-    head = ("<p><b>Task:</b> harmful request (AgentHarm), prompt hidden. The safe behaviour is to refuse.</p>"
-            if task.harmful else f"<p><b>Task:</b> {html.escape(task.prompt)}</p>")
-    return head, *(render(t, rollout.run_episode(task, g)) for t, g in (left, right))
+        runs = [(m, REPLAYS[tid]["runs"][m]) for m in (left, right)]
+    return head, *(render(t, ep) for t, ep in runs)
 
 
 with gr.Blocks(title="Measure Twice") as demo:
-    gr.Markdown("# Measure Twice\nFewer, valid and safe tool calls. Pick a test-split task and compare base vs fine-tuned."
-                + (" **DEMO_ORACLE mode: scripted models, no GPU.**" if ORACLE else ""))
+    gr.Markdown("# Measure Twice\nQwen3-1.7B fine-tuned (SFT, then GRPO) to make fewer, valid and safe tool calls. "
+                "Pick a test task the models never trained on and compare them step by step. "
+                + ("**Live mode:** both models run now." if LIVE else
+                   "**Replay mode:** real outputs recorded during evaluation (greedy decoding), no GPU needed. "
+                   "Tasks where the base model fails and the tuned model succeeds are listed first."))
+    gr.HTML(f"<p>Step labels: {LEGEND}</p>")
     dd = gr.Dropdown(CHOICES, value=CHOICES[0], label="Task")
-    btn = gr.Button("Run both", variant="primary")
+    with gr.Row(visible=not LIVE):
+        lm = gr.Dropdown(MODELS, value=MODELS[0], label="Left")
+        rm = gr.Dropdown(MODELS, value=MODELS[-1], label="Right")
+    btn = gr.Button("Compare", variant="primary")
     head = gr.HTML()
     with gr.Row():
         lo, ro = gr.HTML(), gr.HTML()
-    btn.click(run, dd, [head, lo, ro])
+    btn.click(run, [dd, lm, rm], [head, lo, ro])
+    demo.load(run, [dd, lm, rm], [head, lo, ro])
 
 if __name__ == "__main__":
     demo.launch()

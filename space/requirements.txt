@@ -1,5 +1,2 @@
 gradio>=4.44
-torch
-transformers>=4.51
-peft
-accelerate
+# LIVE=1 on GPU hardware also needs: torch, transformers>=4.51, peft, accelerate

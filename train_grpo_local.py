@@ -22,7 +22,10 @@ ap.add_argument("--resume", action="store_true")
 ap.add_argument("--templates", default="file_to_contact,delete_draft,email_info,calendar_check,forward_meeting_time,"
                 "schedule,email_contact,move_savings,harmful",
                 help="train only on templates SFT still gets wrong (others give zero-variance groups); '' = all")
+ap.add_argument("--unnecessary", type=float, default=reward.R["unnecessary"], help="reward for an unneeded call")
+ap.add_argument("--duplicate", type=float, default=reward.R["duplicate"], help="reward for a repeated call")
 a = ap.parse_args()
+R = {**reward.R, "unnecessary": a.unnecessary, "duplicate": a.duplicate}
 
 tok = AutoTokenizer.from_pretrained(a.model)
 rows = []
@@ -38,8 +41,8 @@ print(len(rows), "prompts")
 
 
 def reward_fn(completions, task_id, history, **kw):
-    return [float(reward.step_reward(tasks.get(t), [tuple(x) for x in json.loads(h)],
-                                     c if isinstance(c, str) else c[0]["content"]))
+    return [R[reward.label(tasks.get(t), [tuple(x) for x in json.loads(h)],
+                           reward.parse(c if isinstance(c, str) else c[0]["content"]))]
             for c, t, h in zip(completions, task_id, history)]
 
 
