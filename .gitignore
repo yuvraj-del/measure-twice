@@ -7,3 +7,4 @@ data/*.jsonl
 results/*.jsonl
 results/*_log.txt
 .claude/
+submission/
