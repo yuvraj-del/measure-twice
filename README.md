@@ -8,37 +8,49 @@ Trained with 4-bit QLoRA on a 6 GB laptop GPU (RTX 4050): SFT takes about 20 min
 
 ## Results
 
-200 test tasks in the sandbox, same task ids for all three models, greedy decoding, thinking disabled.
+200 test tasks in the sandbox, same task ids for every model, greedy decoding, thinking disabled.
 39 of the 200 come from two task types never seen in training (held-out).
+"SFT, no refusals" is an ablation: the same SFT run with the 472 harmful-refusal episodes removed.
 
-| metric | base | SFT | SFT + GRPO |
-|---|---:|---:|---:|
-| task success % | 42.5 | 72.5 | **77.5** |
-| success % on held-out task types | 5.1 | 17.9 | **35.9** |
-| redundant calls % | 29.0 | **16.1** | 20.2 |
-| invalid calls % | **2.3** | 4.4 | **2.3** |
-| unsafe calls % (destructive action without its check) | 2.5 | **0.5** | **0.5** |
-| harmful tasks completed % | 3.8 | **0.0** | **0.0** |
-| over-refusal % (benign task refused) | 5.2 | **0.0** | **0.0** |
-| calls per task | 1.21 | 1.61 | 1.81 |
-| BFCL simple / multiple (exact match) | 84 / 84 | 84 / **88** | 84 / **88** |
-| AgentHarm: harmful / benign prompts attempted % | 70 / 100 | **52** / 96 | **52** / 94 |
+| metric | base | SFT, no refusals | SFT | SFT + GRPO |
+|---|---:|---:|---:|---:|
+| task success % | 42.5 | 68.0 | 72.5 | **77.5** |
+| success % on held-out task types | 5.1 | **35.9** | 17.9 | **35.9** |
+| redundant calls % | 29.0 | 20.2 | **16.1** | 20.2 |
+| invalid turns % | **2.3** | 10.5 | 4.4 | **2.3** |
+| unsafe calls % (destructive action without its check) | 2.5 | **0.0** | 0.5 | 0.5 |
+| harmful sandbox tasks completed % | 3.8 | **0.0** | **0.0** | **0.0** |
+| over-refusal % (benign task refused) | 5.2 | **0.0** | **0.0** | **0.0** |
+| calls per task | 1.21 | 2.87 | 1.61 | 1.81 |
+| BFCL simple / multiple, exact match (50 each) | 90 / 86 | 88 / 90 | 90 / 90 | 90 / 90 |
+| AgentHarm harmful prompts attempted % (53 held-out) | 71.7 | 98.1 | **54.7** | **54.7** |
+| AgentHarm benign prompts attempted % (100) | 98 | **100** | 93 | 91 |
+
+Paired bootstrap 95% CIs (`python ci.py base sft grpo`), differences in percentage points:
+
+| comparison | success | held-out success | redundant calls | invalid turns |
+|---|---|---|---|---|
+| SFT vs base | **+30.0** [+23.5, +36.5] | +12.8 [0.0, +26.1] | **-12.9** [-20.1, -6.0] | +2.1 [0.0, +4.3] |
+| GRPO vs SFT | **+5.0** [+0.5, +9.5] | **+17.9** [+2.5, +33.3] | +4.1 [+0.9, +7.4] | **-2.1** [-3.7, -0.7] |
+
+Bold = the interval excludes zero.
 
 **Takeaways**
-- Success goes from 42.5% to 77.5%, and redundant calls drop by about 30% relative to the base model.
-- Fine-tuning made the model *safer*, not less safe: on AgentHarm, an outside benchmark it never trained on,
-  attempts at harmful tasks fall from 70% to 52% while benign tasks are still attempted (94%).
-  Agentic fine-tuning is known to cause the opposite ([arXiv 2508.14031](https://arxiv.org/abs/2508.14031), AAAI 2026).
-- GRPO doubles held-out success over SFT (17.9% to 35.9%) and brings invalid calls back to the base level.
-- BFCL syntax accuracy is unchanged or better, so the gains are not paid for with general function-calling skill.
+- **Agentic fine-tuning breaks safety, and refusal data fixes it.** Training only on benign agent episodes raises
+  AgentHarm harmful attempts from 72% to 98%, reproducing the regression reported in
+  [arXiv 2508.14031](https://arxiv.org/abs/2508.14031) (AAAI 2026). Adding varied refusals for 15% of training
+  episodes brings it to 55%, below the base model, at a cost of 5-7 points on benign AgentHarm prompts.
+- **Refusal data also makes a better agent:** compared with the ablation, invalid turns drop from 10.5% to 4.4% and calls per task from 2.9 to 1.6.
+- **But it costs generalization, and GRPO pays it back.** With refusals, SFT is more cautious on unseen task types
+  (17.9% vs 35.9% held-out). GRPO on top recovers the full 35.9% while keeping the safety gains, and brings invalid turns back to the base level.
+- Overall: success goes from 42.5% to 77.5%, redundant calls fall by about 30% relative to base, and BFCL syntax accuracy is unchanged or better.
 
 **Limitations**
 - Calls per task rise (1.2 to 1.8): the base model often stops after one call without finishing the task.
-  Fewer *redundant* calls is the efficiency claim, not fewer calls overall.
-- GRPO adds some exploratory calls on the held-out tasks (redundant 16% to 20%).
-- The sandbox is synthetic and small (12 tools, 19 task types); BFCL and AgentHarm are 25 and 50 item subsets.
-  AgentHarm is scored by whether the first turn is a tool call, not by a grader.
-- One seed per model; no confidence intervals.
+  Fewer *redundant* calls is the efficiency claim, not fewer calls overall. GRPO adds some exploratory calls over SFT (16% to 20% redundant).
+- The base-vs-SFT AgentHarm gap (72% to 55%, 53 prompts) is suggestive but not significant at the 5% level on its own (p about 0.07);
+  the ablation-vs-SFT gap (98% to 55%) is unambiguous. AgentHarm is scored by whether the first turn is a tool call, not by a grader.
+- The sandbox is synthetic and small (12 tools, 19 task types). One training seed per model.
 
 ## What we learned on the way
 - **SFT v1** (112 steps, one refusal string) scored 100% on training-style tasks but memorized templates:
@@ -79,6 +91,9 @@ python eval.py --n 200 --name base --bfcl --agentharm
 python eval.py --n 200 --name sft --adapter out/sft_lora --bfcl --agentharm
 python train_grpo_local.py --max-steps 300   # we used checkpoint-150 (out/grpo_ckpt/checkpoint-150)
 python eval.py --n 200 --name grpo --adapter out/grpo_lora --bfcl --agentharm
+python train_local.py --load-4bit --episodes 3000 --lr 1e-4 --max-steps 40 --no-refusals --out out/sft_norefuse_lora   # ablation
+python eval.py --bench-only --bench-n 100 --name grpo --adapter out/grpo_lora   # larger BFCL/AgentHarm subsets -> results/bench.csv
+python ci.py base sft grpo
 python plot.py
 ```
 

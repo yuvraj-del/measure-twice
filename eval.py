@@ -231,6 +231,7 @@ def main():
     ap.add_argument("--agentharm", action="store_true")
     ap.add_argument("--bench-n", type=int, default=50, help="items per external benchmark subset (max 100)")
     ap.add_argument("--batch", type=int, default=8, help="episodes run concurrently / generation batch size")
+    ap.add_argument("--bench-only", action="store_true", help="skip the sandbox; write results/bench.csv")
     a = ap.parse_args()
     out = a.out or f"results/{a.name}.jsonl"
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
@@ -239,6 +240,11 @@ def main():
     if not a.oracle:
         model, tok = load_model(a.model, a.adapter, a.load_4bit)
         gen = rollout.hf_batch_generator(model, tok, batch=a.batch)
+
+    if a.bench_only:
+        n = min(a.bench_n, 100)
+        row = {"name": a.name, **guarded("bfcl", run_bfcl, gen, n), **guarded("agentharm", run_agentharm, gen, n)}
+        return write_summary("results/bench.csv", row)
 
     rows = []
     tasks = generate(a.split, a.n, seed=a.seed)

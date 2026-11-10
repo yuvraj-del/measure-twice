@@ -20,14 +20,18 @@ ap.add_argument("--max-len", type=int, default=2048)
 ap.add_argument("--max-steps", type=int, default=-1)
 ap.add_argument("--load-4bit", action="store_true", help="QLoRA, if bf16 does not fit")
 ap.add_argument("--resume", action="store_true")
+ap.add_argument("--no-refusals", action="store_true", help="ablation: drop harmful-refusal episodes")
 a = ap.parse_args()
 
 tok = AutoTokenizer.from_pretrained(a.model)
 rows = [json.loads(l) for l in open("data/sft.jsonl", encoding="utf-8")]
 random.Random(0).shuffle(rows)
 ex = []
+from sandbox.tasks import REFUSALS
 for r in rows[:a.episodes]:
     m = r["messages"]
+    if a.no_refusals and m[-1]["content"] in REFUSALS:
+        continue
     for i, x in enumerate(m):
         if x["role"] != "assistant":
             continue

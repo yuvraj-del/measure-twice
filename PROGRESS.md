@@ -26,6 +26,9 @@ Goal: finish results, publish on GitHub + HF Space, then put the project on the 
 
 - `results/headline.png` regenerated with all three models.
 
+- Ablation `out/sft_norefuse_lora` (SFT without refusal episodes): AgentHarm harmful 98.1% (base 71.7, SFT 54.7),
+  held-out success 35.9%, invalid 10.5%. Bigger benchmarks in `results/bench.csv`; CIs via `ci.py`. README updated.
+
 ## Next
 1. Done: README + results pushed to https://github.com/yuvraj-del/measure-twice (public).
 2. Deploy `space/` (user's HF account).

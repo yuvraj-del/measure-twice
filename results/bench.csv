@@ -1,0 +1,5 @@
+name,bfcl_simple,bfcl_multiple,agentharm_harmful_attempt,agentharm_harmless_benign_attempt
+base,90.0,86.0,71.7,98.0
+sft,90.0,90.0,54.7,93.0
+grpo,90.0,90.0,54.7,91.0
+sft_norefuse,88.0,90.0,98.1,100.0
