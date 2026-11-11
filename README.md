@@ -4,6 +4,8 @@ Fine-tuning **Qwen3-1.7B** to be a better tool-using agent: finish the task, ski
 check before destructive actions, and refuse harmful requests without over-refusing benign ones.
 Trained with 4-bit QLoRA on a 6 GB laptop GPU (RTX 4050): SFT takes about 20 minutes, GRPO about 2.3 hours.
 
+**Live demo:** [huggingface.co/spaces/yuvraj-del/measure-twice](https://huggingface.co/spaces/yuvraj-del/measure-twice) (compare models step by step on the test tasks)
+
 ![results](results/headline.png)
 
 ## Results
