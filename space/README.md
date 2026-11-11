@@ -3,8 +3,8 @@ title: Measure Twice
 emoji: 📏
 colorFrom: blue
 colorTo: green
-sdk: gradio
-app_file: app.py
+sdk: static
+app_file: index.html
 pinned: false
 short_description: Fewer, valid and safe tool calls from a fine-tuned 1.7B agent
 ---
@@ -16,10 +16,9 @@ Pick a test task and compare two models step by step. Every step is labelled:
 `gold` (needed), `duplicate` / `unnecessary` (wasted), `unsafe` (destructive action without its check),
 `invalid` (bad tool or arguments), `final_ok` / `final_bad`.
 
-**Replay mode (default):** shows the real outputs recorded on the 174 benign test tasks during evaluation
-(greedy decoding), so it runs on free CPU hardware. Harmful-request tasks are not included.
+This static page replays the real outputs recorded on the 174 benign test tasks during evaluation
+(greedy decoding). Harmful-request tasks are not included.
 
-**Live mode:** set the Space variable `LIVE=1` on GPU hardware, add `torch transformers peft accelerate` to
-`requirements.txt`, and optionally set `BASE_MODEL`, `TUNED_MODEL`, `TUNED_ADAPTER` (a LoRA repo id).
+To run the models live instead, use `space/app.py` from the repo as a Gradio Space on GPU hardware with `LIVE=1`.
 
 Code, results and method: https://github.com/yuvraj-del/measure-twice

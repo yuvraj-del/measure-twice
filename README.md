@@ -82,9 +82,10 @@ Bold = the interval excludes zero.
 - **Training**: SFT on oracle episodes (`train_local.py`, loss only on the assistant turn), then GRPO with the
   step reward (`train_grpo_local.py`, TRL). Kaggle notebooks (`train_sft.ipynb`, `train_grpo.ipynb`) do the same with Unsloth.
 - **Eval** (`eval.py`): sandbox metrics split by in-distribution and held-out templates, plus BFCL and AgentHarm.
-- **Demo** (`space/`): Gradio app comparing two models step by step on a test task. By default it replays the real
-  recorded eval episodes (no GPU); `LIVE=1` runs the models. `python space/export_replays.py` refreshes the replays,
-  `python space/stage.py` copies everything the Space needs into `dist/space/` for upload.
+- **Demo** (`space/`): `index.html` is a static page (free HF Static Space) that replays the real recorded eval
+  episodes of two models side by side. `app.py` is the Gradio version, which can also run the models live
+  (`LIVE=1`, GPU). `python space/export_replays.py` refreshes the replays, and `python space/stage.py` copies the
+  static Space into `dist/space/` for upload.
 
 ## Reproduce
 

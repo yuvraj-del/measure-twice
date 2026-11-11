@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Measure Twice</title>
+<style>
+  :root { --bg:#fff; --fg:#1a1a1a; --muted:#666; --card:rgba(127,127,127,.08); --border:#ddd; --accent:#0072B2; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111418; --fg:#e8e8e8; --muted:#9aa; --border:#333; --accent:#56B4E9; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+  main { max-width:1200px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { margin:0 0 4px; } p { margin:6px 0; }
+  .muted { color:var(--muted); }
+  select { font:inherit; color:var(--fg); background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:6px 8px; width:100%; }
+  .controls { display:grid; grid-template-columns:1fr; gap:10px; margin:16px 0; }
+  .controls label { font-size:.85em; color:var(--muted); display:block; margin-bottom:2px; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:760px) { .cols { grid-template-columns:1fr; } }
+  .tag { color:#000; padding:1px 6px; border-radius:3px; font-size:.8em; white-space:nowrap; }
+  .step { border-left:6px solid; padding:6px 10px; margin:6px 0; border-radius:4px; background:var(--card); overflow-wrap:anywhere; }
+  .res { opacity:.75; font-size:.85em; margin-top:4px; }
+  code { font-size:.9em; }
+  .ok { color:#009E73; } .bad { color:#D55E00; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Measure Twice</h1>
+  <p>Qwen3-1.7B fine-tuned (SFT, then GRPO) to make fewer, valid and safe tool calls.
+     Pick a test task and compare two models step by step. These are real outputs recorded during evaluation
+     (greedy decoding). Tasks where the base model fails and the tuned model succeeds are listed first;
+     <b>[held-out]</b> task types never appeared in training.</p>
+  <p id="legend"></p>
+  <div class="controls">
+    <div><label for="task">Task</label><select id="task"></select></div>
+    <div class="pair">
+      <div><label for="left">Left</label><select id="left"></select></div>
+      <div><label for="right">Right</label><select id="right"></select></div>
+    </div>
+  </div>
+  <p id="head"></p>
+  <div class="cols"><div id="lo"></div><div id="ro"></div></div>
+  <p class="muted" style="margin-top:32px">Code, results and method:
+     <a href="https://github.com/yuvraj-del/measure-twice">github.com/yuvraj-del/measure-twice</a></p>
+</main>
+<script>
+const COLORS = {gold:"#009E73", final_ok:"#0072B2", duplicate:"#E69F00", unnecessary:"#F0E442",
+                unsafe:"#D55E00", invalid:"#CC79A7", final_bad:"#882255"};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const tag = (k, c) => `<span class="tag" style="background:${c}">${esc(k)}</span>`;
+const $ = id => document.getElementById(id);
+$("legend").innerHTML = "Step labels: " + Object.entries(COLORS).map(([k, c]) => tag(k, c)).join(" ");
+
+function body(completion) {  // mirrors reward.parse for display: a tool call, else the final text
+  const m = completion.match(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/);
+  if (m) { try { const j = JSON.parse(m[1]); return `<code>${esc(j.name)}(${esc(JSON.stringify(j.arguments ?? {}))})</code>`; } catch {} }
+  return esc(completion);
+}
+
+function render(title, ep) {
+  const status = ep.success ? '<span class="ok">success</span>' : '<span class="bad">failed</span>';
+  return `<h3>${esc(title)}</h3><p><b>${ep.n_calls}</b> tool calls &middot; ${status} &middot; redundant ${ep.n_redundant}`
+    + ` &middot; unsafe ${ep.n_unsafe} &middot; invalid ${ep.n_invalid}</p>`
+    + ep.steps.map(s => {
+        const c = COLORS[s.label] || "#999";
+        const res = s.result ? `<div class="res">&rarr; ${esc(String(s.result).slice(0, 400))}</div>` : "";
+        return `<div class="step" style="border-color:${c}">${tag(s.label, c)} ${body(s.completion)}${res}</div>`;
+      }).join("");
+}
+
+fetch("replays.json").then(r => r.json()).then(R => {
+  const models = Object.keys(Object.values(R)[0].runs);
+  const first = models[0], last = models[models.length - 1];
+  const interest = t => [!(!R[t].runs[first].success && R[t].runs[last].success), !R[t].heldout, t];
+  const tids = Object.keys(R).sort((a, b) => {
+    const x = interest(a), y = interest(b);
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
+    return 0;
+  });
+  $("task").innerHTML = tids.map(t => `<option value="${esc(t)}">${R[t].heldout ? "[held-out] " : ""}${esc(R[t].prompt.slice(0, 90))}</option>`).join("");
+  for (const id of ["left", "right"]) $(id).innerHTML = models.map(m => `<option>${esc(m)}</option>`).join("");
+  $("right").value = last;
+  const run = () => {
+    const t = $("task").value;
+    $("head").innerHTML = `<b>Task:</b> ${esc(R[t].prompt)}`;
+    $("lo").innerHTML = render($("left").value, R[t].runs[$("left").value]);
+    $("ro").innerHTML = render($("right").value, R[t].runs[$("right").value]);
+  };
+  for (const id of ["task", "left", "right"]) $(id).onchange = run;
+  run();
+}).catch(e => { $("head").textContent = "Could not load replays.json: " + e; });
+</script>
+</body>
+</html>
