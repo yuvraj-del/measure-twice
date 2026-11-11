@@ -62,6 +62,10 @@ Bold = the interval excludes zero.
 - **GRPO** on all prompts wasted most steps: once SFT gets a prompt right, all 8 samples score the same and
   give no gradient. Training only on the task types SFT still failed (plus harmful prompts) fixed that.
   Reward plateaued after about 50 steps, so the run was stopped at step 150 of 300.
+- **A second GRPO round with harsher waste penalties** (unnecessary −1.0, duplicate −1.5; `out/grpo2_lora`)
+  did not cut redundant calls (19.3% vs 20.2%, CI −5.0 to +3.2) and lowered held-out success (28.2% vs 35.9%).
+  It attempted fewer harmful AgentHarm tasks (47% vs 55%) but also refused more harmless ones (83% vs 91%
+  attempted), so we kept the first GRPO model.
 
 ## How it works
 
