@@ -6,7 +6,7 @@ colorTo: green
 sdk: static
 app_file: index.html
 pinned: false
-short_description: Fewer, valid and safe tool calls from a fine-tuned 1.7B agent
+short_description: Fewer, valid and safe tool calls from a tuned 1.7B agent
 ---
 
 # Measure Twice
